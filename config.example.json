@@ -1,0 +1,5 @@
+{
+  "device_id": "YOUR_DEVICE_ID",
+  "password": "YOUR_PASSWORD",
+  "fan_ip": "192.168.x.x"
+}
