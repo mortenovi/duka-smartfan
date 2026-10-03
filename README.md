@@ -58,6 +58,23 @@ python fan_snapshot.py
 
 3. Run `python fan_snapshot.py`. If it prints the fan's state, you are done.
 
+## Using it from another project
+
+The protocol module installs on its own, so a project that controls the fan
+can depend on this repository instead of copying the file and watching the
+two drift apart:
+
+```
+pip install git+https://github.com/mortenovi/duka-smartfan.git
+```
+
+That installs `fan_protocol` and nothing else - the scripts beside it are
+meant to be run from a clone. An installed module cannot keep `config.json`
+next to itself, so it looks for it in three places, in this order: the path
+in `DUKA_SMARTFAN_CONFIG`, `config.json` in the working directory, and
+`config.json` beside the module. If it finds none, it says which three
+places it looked.
+
 ## Using it from Python
 
 ```python

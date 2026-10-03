@@ -63,8 +63,41 @@ import os
 import socket
 import struct
 
-_config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.json")
-with open(_config_path) as _f:
+def _find_config() -> str:
+    """
+    Where config.json is, in the order we look:
+
+      1. the path in DUKA_SMARTFAN_CONFIG, if it is set
+      2. config.json in the current directory
+      3. config.json beside this file
+
+    The third is the one that works when you clone the repository and run a
+    script from it. The first two are for when this module is installed as a
+    dependency, where "beside this file" is somewhere inside site-packages.
+    """
+    tried = []
+    from_env = os.environ.get("DUKA_SMARTFAN_CONFIG")
+    if from_env:
+        tried.append(from_env)
+        if os.path.isfile(from_env):
+            return from_env
+    for candidate in (os.path.abspath("config.json"),
+                      os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                   "config.json")):
+        if candidate in tried:
+            continue
+        tried.append(candidate)
+        if os.path.isfile(candidate):
+            return candidate
+    raise FileNotFoundError(
+        "No config.json with the fan's device id, password and ip address. "
+        "Looked in: " + ", ".join(tried) + ". Copy config.example.json, fill "
+        "it in, and either put it in the working directory or point "
+        "DUKA_SMARTFAN_CONFIG at it."
+    )
+
+
+with open(_find_config()) as _f:
     _config = json.load(_f)
 
 DEVICE_ID = _config["device_id"]

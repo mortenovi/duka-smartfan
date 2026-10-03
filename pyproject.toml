@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "duka-smartfan"
+version = "1.0.0"
+description = "Local control of a Duka Smartfan WiFi ventilation fan over UDP"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "mortenovi", email = "developer@ovi.dk" }]
+keywords = ["duka", "blauberg", "ventilation", "home-assistant", "udp"]
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/mortenovi/duka-smartfan"
+
+# Only the protocol module is installed. The scripts beside it are meant to be
+# run from a clone, not imported.
+[tool.setuptools]
+py-modules = ["fan_protocol"]
