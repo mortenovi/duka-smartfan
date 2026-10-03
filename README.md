@@ -24,15 +24,16 @@ python fan_snapshot.py
 
 | File | What it does |
 |------|--------------|
-| `fan_protocol.py` | The protocol: packets, reading, writing, and `read_state()` |
+| `fan_protocol.py` | The protocol: packets, reading, writing, `read_state()` and the actions below |
 | `fan_snapshot.py` | Print everything the fan will tell you. Changes nothing |
-| `fan_boost_toggle.py` | One button: boost on, boost off. Written for a smart button |
-| `fan_boost_on.py` | Start boost |
-| `fan_off.py` | Switch the fan off, which also ends a running boost |
+| `fan_button_press.py` | **Short press on a wall button:** start the fan, or stop it |
+| `fan_button_hold.py` | **Long press:** pause all ventilation, and put it back |
+| `fan_boost_on.py` / `fan_boost_off.py` | Start and stop a boost |
+| `fan_off.py` | Switch the fan off |
 | `fan_24h.py` | Switch 24 hour mode on or off |
 | `PROTOCOL.md` | **What the fan actually does**, measured rather than quoted |
 | `PACKETS.md` | The wire format byte by byte, and what each byte in the packets found online really does |
-| `states.svg` | The same thing as a diagram |
+| `states.svg` | The same as a diagram |
 
 ## Getting started
 
@@ -60,36 +61,69 @@ python fan_snapshot.py
 ```python
 import fan_protocol as fan
 
-state = fan.read_state()        # None when the fan does not answer
-print(fan.describe(state))      # "24 hour mode", "boost", "idle", "off"
+state = fan.read_state()          # None when the fan does not answer
+print(fan.describe(state))        # "24 hour mode", "boost", "sensor driven", "idle", "off"
 
-fan.write(0x03, 1)              # 24 hour mode on
-fan.write(0x01, 1)              # power on - both are needed
+fan.boost(True)                   # start a boost
+fan.boost(False)                  # end it, leaving the ventilation running
+fan.mode_24h(True)                # constant background ventilation
+fan.power(False)                  # switch the fan off
+fan.humidity_sensor(0)            # 0 off, 1 auto, 2 manual
+fan.temperature_sensor(False)
+fan.humidity_threshold(60)        # percent, 40 to 80
+fan.temperature_threshold(24)     # degrees, 18 to 36
 ```
 
 `read_state()` returns `None` rather than zeros when the fan is silent. That distinction matters: a dropped packet must not look like a fan that is switched off, or your automation will start the fan when it meant to leave it alone.
 
-## Home Assistant
+## Home Assistant and a wall button
 
-Add a shell command in `configuration.yaml`:
+Two shell commands in `configuration.yaml`:
 
 ```yaml
 shell_command:
-  fan_toggle: python /config/scripts/duka-smartfan/fan_boost_toggle.py
+  fan_press:  python /config/scripts/duka-smartfan/fan_button_press.py
+  fan_quiet:  python /config/scripts/duka-smartfan/fan_button_hold.py quiet
+  fan_resume: python /config/scripts/duka-smartfan/fan_button_hold.py resume
 ```
 
-and call it from an automation:
+Put `fan_protocol.py`, both button scripts and your `config.json` in that folder.
+
+**A Hue button sends several events for one press.** It is a stateless device: pressing it emits `initial_press` and then `short_release`, and holding it emits `initial_press`, a stream of `repeat`, and finally `long_release`. An automation that triggers on any event from the button therefore runs twice per press, and the second run undoes the first. Trigger on the release only:
 
 ```yaml
-action:
-  - service: shell_command.fan_toggle
+automation:
+  - alias: Fan button - short press
+    mode: single
+    triggers:
+      - trigger: event
+        event_type: hue_event
+        event_data:
+          id: YOUR_BUTTON_ID        # see below
+          type: short_release
+    actions:
+      - action: shell_command.fan_press
+
+  - alias: Fan button - long press
+    mode: single
+    triggers:
+      - trigger: event
+        event_type: hue_event
+        event_data:
+          id: YOUR_BUTTON_ID
+          type: long_release
+    actions:
+      - action: shell_command.fan_quiet
+      - delay: "03:00:00"
+        # The script cannot wake itself up. Home Assistant holds the timer.
+      - action: shell_command.fan_resume
 ```
 
-Put `fan_protocol.py`, `fan_boost_toggle.py` and your `config.json` in the same folder on the Home Assistant host.
+To find your button's id and the exact event names: Developer tools, Events, listen to `hue_event`, then press the button short and then long. Use what you actually see — the names differ between the Hue bridge, ZHA and Zigbee2MQTT.
 
-If a smart button triggers the automation, make the automation listen to **one** event from the button and set `mode: single`. Many buttons send both a press and a release, and that is two runs of the script. `fan_boost_toggle.py` ignores a second run within five seconds for exactly this reason, but it is better not to send it twice in the first place.
+`mode: single` matters on the long press automation: it keeps a second long press from starting a second three hour timer. The scripts also ignore a second run within five seconds, so a duplicate event cannot undo the press that came before it.
 
-## Four things worth knowing before you build on this
+## Four things worth knowing## Four things worth knowing before you build on this
 
 **The fan spins when power is on and either 24 hour mode is on or a boost is running.** A toggle that asks "is the fan spinning" will switch the fan off when 24 hour mode is on, instead of giving you boost. Decide from the boost countdown instead.
 

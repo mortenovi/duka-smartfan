@@ -243,3 +243,70 @@ def describe(state: dict | None) -> str:
     if state.get("sensor_demand") or not state["mode_24h"]:
         return "sensor driven"
     return "24 hour mode"
+
+# ---------- actions ----------
+#
+# Everything the fan can be told to do, in the words of what it does rather
+# than the bytes it takes. The bytes are in PACKETS.md.
+
+
+def power(on: bool) -> bool:
+    """Switch the fan on or off. On its own this does not make it spin."""
+    return bool(write(0x01, 1 if on else 0))
+
+
+def boost(on: bool) -> bool:
+    """
+    Start or stop a boost.
+
+    Starting sends power on and the boost switch in one packet, because the
+    boost switch does nothing on a fan without power. Stopping writes the
+    boost switch only, so the ventilation underneath keeps running.
+    """
+    if on:
+        return bool(send_raw(bytes([0x01, 0x01, 0x05, 0x01]), func=0x03))
+    return bool(send_raw(bytes([0x05, 0x00]), func=0x03))
+
+
+def mode_24h(on: bool) -> bool:
+    """
+    Switch 24 hour mode, the constant low-speed background ventilation.
+
+    Switching it on also switches power on, because the setting alone does
+    nothing. Switching it off leaves power alone: the rotor stops within ten
+    seconds and the fan rests, ready for the next command or sensor.
+    """
+    ok = bool(write(0x03, 1 if on else 0))
+    if on:
+        ok = bool(write(0x01, 1)) and ok
+    return ok
+
+
+def humidity_sensor(mode: int) -> bool:
+    """0 switches the humidity sensor off, 1 is auto, 2 is manual."""
+    if mode not in (0, 1, 2):
+        raise ValueError("humidity_sensor takes 0, 1 or 2")
+    return bool(write(0x0F, mode))
+
+
+def temperature_sensor(on: bool) -> bool:
+    """Switch the temperature sensor on or off."""
+    return bool(write(0x11, 1 if on else 0))
+
+
+def humidity_threshold(percent: int) -> bool:
+    """
+    Set the humidity threshold used in manual mode. 40 to 80 percent.
+
+    The fan ignores anything outside that range without saying so.
+    """
+    if not 40 <= percent <= 80:
+        raise ValueError("the fan only accepts 40 to 80 percent")
+    return bool(write(0x14, percent))
+
+
+def temperature_threshold(degrees: int) -> bool:
+    """Set the temperature threshold. The manual allows 18 to 36 degrees."""
+    if not 18 <= degrees <= 36:
+        raise ValueError("the fan only accepts 18 to 36 degrees")
+    return bool(write(0x16, degrees))

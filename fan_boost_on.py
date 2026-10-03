@@ -1,11 +1,9 @@
-"""Start boost (15 minutes). The fan beeps once."""
+"""Start boost. The fan beeps once and runs for the time set in the app."""
 
 import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import fan_protocol as fan
-from fan_boost_toggle import BOOST_MINUTES, BOOST_ON
 
-answer = fan.send_raw(BOOST_ON, func=0x03)
-print(f"Boost on ({BOOST_MINUTES} min)" if answer else "No answer from the fan")
+print("Boost on" if fan.boost(True) else "No answer from the fan")
