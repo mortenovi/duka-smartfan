@@ -23,7 +23,9 @@ This matters more than it sounds. A button that decides from "is the fan spinnin
 
 ## Boost
 
-Boost lasts **15 minutes** on this unit. Writing 15 to parameter `0x14` does not set that; `0x14` cannot be written at all and stays at 40 whatever you send. The duration is the unit's own.
+Boost lasted **15 minutes** on this unit, every time it was measured. The duration is set in the app under Settings - Timers, not over the protocol as far as we can tell.
+
+⛔ Do not put `0x14` in a boost packet. Scripts in circulation send `14=15` as a "boost duration". `0x14` is the **humidity threshold in percent**, and it accepts 40 to 80. A value of 15 is out of range and quietly ignored, which is why nobody noticed - but a boost packet carrying `14=60` would change the owner's humidity setting on every single press.
 
 **Boost can only be stopped by switching power off.** Writing 0 to the boost status `0x07`, to the countdown `0x06`, to `0x14`, or sending a speed change were all tried mid-boost and the countdown simply kept running. `0x01 = 0` stops it instantly and clears the countdown, so a stopped boost can never restart the fan later.
 
@@ -45,7 +47,11 @@ On the unit measured here, humidity was on in `Auto` and the rest were off. Two 
 
 Two consequences for anything built on this library: the fan's state can change while your automation is not looking, and a sensor can be the reason the fan is running. Read the state before you act on it, which is what `read_state()` is for.
 
-The sensor switches are `0x0F` for humidity and `0x11` for temperature, both verified by flipping them in the app and reading the unit. The threshold the app showed for temperature, 24 degrees, matches `0x16`. How long the fan keeps running after a sensor is satisfied has not been measured yet.
+The sensor switches are `0x0F` for humidity and `0x11` for temperature, both verified by flipping them in the app and reading the unit. `0x16` holds the temperature threshold and `0x14` the humidity threshold, both verified by changing them and reading back.
+
+The humidity sensor has two modes. In **auto** the unit decides for itself when to ventilate - the manual calls it intelligent humidity control - and `0x0F` reads 1. In **manual** you set a threshold between 40 and 80 percent, `0x0F` reads 2 and `0x08` reads 1.
+
+**The afterrun is shorter than the manual suggests.** With the temperature sensor on and the room above its threshold, raising the threshold above the room temperature ended the demand, and the fan dropped from 1440 to 930 rpm within 30 seconds. Switching the sensor off entirely dropped it within 20 seconds. The manual mentions an afterrun of 2 to 30 minutes, set in the app under Timers, but nothing like that was observed on the temperature path.
 
 ## 24 hour mode
 
@@ -68,16 +74,34 @@ Because of this, anything that starts boost must leave `0x03` alone. A boost pac
 | `0x07` | read | Boost running, 0 or 1 |
 | `0x2E` | read | Humidity in percent |
 | `0x31` | read | Temperature in degrees Celsius |
-| `0x0F` | read/write | Humidity sensor on/off |
+| `0x0F` | read/write | Humidity sensor: 0 off, 1 on in auto mode, 2 on in manual mode |
 | `0x11` | read/write | Temperature sensor on/off |
 | `0x0A` | read | A sensor is asking for ventilation right now, 0 or 1. Seen with the temperature sensor |
-| `0x16` | read/write | Temperature threshold in degrees, probably. The app showed 24 and so does this |
-| `0x14` | read | Reads 40, cannot be written, purpose unknown |
-| `0x02` `0x05` `0x08` | read | Answer with a value, meaning unknown |
+| `0x16` | read/write | Temperature threshold in degrees. The manual allows 18 to 36. Verified by writing it and watching the sensor react |
+| `0x14` | read/write | Humidity threshold in percent, 40 to 80. Only used when the humidity sensor is in manual mode. Values outside the range are ignored |
+| `0x08` | read | 1 while the humidity sensor is in manual mode |
+| `0x02` `0x05` | read | Answer with a value, meaning unknown |
 | `0x17` `0x18` `0x1A` `0x1B` `0x23` | read | Settings, meaning unknown |
 | `0x1F` `0x20` `0x21` | read | 3-byte counters, probably run time and filter time |
 
 One practical detail: the unit does not answer a request that asks for many parameters at once. Read them one at a time.
+
+## What the manufacturer's manual adds
+
+The Wi-Fi model's manual (dukaventilation.dk/smartfan-wi-fi-manual) names the unit's own programs, and they line up with what we measured:
+
+| The manual's name | What it says | What we measured |
+|---|---|---|
+| Standby | Out of operation. Starts on 24 hour mode, on a signal from the temperature or humidity sensor, or on the external switch | Power on with nothing running, 0 rpm |
+| 24 hour mode | Low speed, constant background ventilation. If a sensor or the external switch activates it, the fan switches to the Silent or Max program | 930 rpm |
+| Silent | Starts on the LT and LI terminals. Speed set in the app | Not measured - this unit is driven over wifi |
+| Max | Activated by the temperature or humidity sensor, or by Boost Mode | 1440 rpm, and the reason boost and sensor-driven running look identical |
+
+So "boost" and "a sensor wants ventilation" are the same program, Max, reached two different ways. That is the root of the trap: they cannot differ in speed because they are the same thing.
+
+The manual also lists three nominal speeds for the fan (24 hour, Silent, Max) and says the Silent and Max speeds are adjustable in the app, so the rpm figures above are this unit's settings and not fixed values.
+
+Two features we have not explored: interval ventilation, which runs the fan every 12 hours if it has not been active for 24, and delayed start. Both can start the fan on their own, like the sensors.
 
 ## Where the published tables are wrong for this unit
 

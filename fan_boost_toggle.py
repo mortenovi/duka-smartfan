@@ -40,7 +40,6 @@ BOOST_PACKET = bytes([
     0x05, 0x01,           # aux
     0x07, 0x02,           # boost mode
     0x06, 0x01,           # boost on
-    0x14, BOOST_MINUTES,  # the unit ignores this; boost is always 15 minutes
 ])
 
 

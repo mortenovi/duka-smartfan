@@ -28,13 +28,18 @@ reading the unit directly.
   0x07  R    boost running           0 = no, 1 = yes
   0x2E  R    humidity                percent
   0x31  R    temperature             degrees Celsius
-  0x0F  R/W  humidity sensor on/off  0 = off, 1 = on
+  0x0F  R/W  humidity sensor         0 = off, 1 = on in auto, 2 = on in manual
   0x11  R/W  temperature sensor      0 = off, 1 = on
   0x0A  R    a sensor is asking for ventilation right now, 0 or 1
              (seen with the temperature sensor; not confirmed for the others)
-  0x16  R/W  temperature threshold in degrees, probably - the app showed 24
-  0x14  R/W  unknown - reads 40 and cannot be written
-  0x02 0x05 0x08                   answer with a value, meaning unknown
+  0x16  R/W  temperature threshold in degrees, 18-36 per the manual
+  0x14  R/W  humidity threshold in percent, 40-80. Only used when the
+             humidity sensor is in manual mode. Values outside 40-80 are
+             ignored, which is why a boost packet carrying 0x14 looked
+             harmless - send a value inside the range and it silently
+             changes the owner's humidity setting
+  0x08  R    1 while the humidity sensor is in manual mode
+  0x02 0x05                        answer with a value, meaning unknown
   0x17 0x18 0x1A 0x1B 0x23         settings, meaning unknown
   0x1F 0x20 0x21                   3-byte counters, probably run/filter time
 

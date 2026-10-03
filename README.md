@@ -92,7 +92,9 @@ If a smart button triggers the automation, make the automation listen to **one**
 
 **The fan spins when power is on and either 24 hour mode is on or a boost is running.** A toggle that asks "is the fan spinning" will switch the fan off when 24 hour mode is on, instead of giving you boost. Decide from the boost countdown instead.
 
-**Boost can only be stopped by switching power off.** Writing zero to the boost status, the countdown or parameter `0x14` does nothing at all. Boost lasts 15 minutes and the duration cannot be set.
+**Boost can only be stopped by switching power off.** Writing zero to the boost status or to the countdown does nothing at all. Boost lasts 15 minutes, and the duration is set in the app, not over the protocol.
+
+⛔ If you copied a boost packet from somewhere, check it for `0x14`. Scripts in circulation send `14=15` believing it sets the boost duration. `0x14` is the humidity threshold in percent and accepts 40 to 80, so 15 is ignored - but a value inside the range would change the owner's humidity setting on every press.
 
 **The fan starts itself.** The humidity sensor is on by default and runs the fan without anyone pressing anything, and it does so without setting the boost countdown or the boost flag. So never recognise boost by speed alone, and never assume your automation is the only thing touching the fan. `read_state()` reports `sensor_demand` for this.
 
