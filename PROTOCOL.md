@@ -14,9 +14,10 @@ The fan is always in exactly one of these. Power, speed and the boost countdown 
 | Idle | 1 | 0 | 0 | Powered but with no job to do. This is the unit's normal resting state |
 | 24 hour mode | 1 | 930 | 0 | Constant background ventilation at low speed |
 | Boost | 1 | 1440 | counts down | Full speed for 15 minutes |
+| Sensor driven | 1 | up to 1440 | 0 | A sensor is asking for ventilation. The fan started this itself |
 | No answer | — | — | — | Three seconds of silence. Not the same as off |
 
-**The rule behind the table:** the fan spins when power is on **and** either 24 hour mode is on or a boost is running. Power on with neither gives you a powered fan standing still.
+**The rule behind the table:** the fan spins when power is on **and** either 24 hour mode is on, a boost is running, or a sensor is asking for ventilation. Power on with neither gives you a powered fan standing still.
 
 This matters more than it sounds. A button that decides from "is the fan spinning" will switch the fan off when 24 hour mode is on, instead of giving you boost.
 
@@ -30,6 +31,21 @@ Boost lasts **15 minutes** on this unit. Writing 15 to parameter `0x14` does not
 
 - 24 hour mode on: speed drops from 1440 to 930 and the fan keeps running.
 - 24 hour mode off: the rotor stops, but **power stays on** — the fan ends up idle, not off. This is also what happens when boost was started from a fan that was completely off.
+
+## The fan starts itself
+
+The unit has its own sensors, and they run the fan without anyone pressing anything. In the Duka app they live under Settings - Sensors: humidity, temperature, motion and external switch, each with its own switch, and humidity has an `Auto` mode described as intelligent humidity control.
+
+On the unit measured here, humidity was on in `Auto` and the rest were off. Two measurements:
+
+- The fan was left switched off at 11:17 and was running at 930 rpm at 11:57 with nobody touching it. Humidity was 76 percent.
+- Switching the temperature sensor on while the room was 26 degrees against its 24 degree threshold took the fan to 1440 rpm immediately, with the countdown at zero and the boost flag clear. Parameter `0x0A` went to 1 and back to 0 when the sensor was switched off again, so it looks like "a sensor wants ventilation right now".
+
+**Sensor-driven running looks like boost but is not boost.** Same speed, no countdown, no boost flag. Recognise boost by the countdown `0x06` and the flag `0x07`, never by speed.
+
+Two consequences for anything built on this library: the fan's state can change while your automation is not looking, and a sensor can be the reason the fan is running. Read the state before you act on it, which is what `read_state()` is for.
+
+The sensor switches are `0x0F` for humidity and `0x11` for temperature, both verified by flipping them in the app and reading the unit. The threshold the app showed for temperature, 24 degrees, matches `0x16`. How long the fan keeps running after a sensor is satisfied has not been measured yet.
 
 ## 24 hour mode
 
@@ -52,10 +68,13 @@ Because of this, anything that starts boost must leave `0x03` alone. A boost pac
 | `0x07` | read | Boost running, 0 or 1 |
 | `0x2E` | read | Humidity in percent |
 | `0x31` | read | Temperature in degrees Celsius |
-| `0x0F` | read/write | Humidity sensor on/off (assumed, not verified) |
+| `0x0F` | read/write | Humidity sensor on/off |
+| `0x11` | read/write | Temperature sensor on/off |
+| `0x0A` | read | A sensor is asking for ventilation right now, 0 or 1. Seen with the temperature sensor |
+| `0x16` | read/write | Temperature threshold in degrees, probably. The app showed 24 and so does this |
 | `0x14` | read | Reads 40, cannot be written, purpose unknown |
-| `0x02` `0x05` `0x08` `0x0A` | read | Answer with a value, meaning unknown |
-| `0x16` `0x17` `0x18` `0x1A` `0x1B` `0x23` | read | Settings, meaning unknown |
+| `0x02` `0x05` `0x08` | read | Answer with a value, meaning unknown |
+| `0x17` `0x18` `0x1A` `0x1B` `0x23` | read | Settings, meaning unknown |
 | `0x1F` `0x20` `0x21` | read | 3-byte counters, probably run time and filter time |
 
 One practical detail: the unit does not answer a request that asks for many parameters at once. Read them one at a time.

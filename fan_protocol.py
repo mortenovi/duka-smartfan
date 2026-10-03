@@ -28,10 +28,14 @@ reading the unit directly.
   0x07  R    boost running           0 = no, 1 = yes
   0x2E  R    humidity                percent
   0x31  R    temperature             degrees Celsius
-  0x0F  R/W  humidity sensor on/off  assumed, not verified
+  0x0F  R/W  humidity sensor on/off  0 = off, 1 = on
+  0x11  R/W  temperature sensor      0 = off, 1 = on
+  0x0A  R    a sensor is asking for ventilation right now, 0 or 1
+             (seen with the temperature sensor; not confirmed for the others)
+  0x16  R/W  temperature threshold in degrees, probably - the app showed 24
   0x14  R/W  unknown - reads 40 and cannot be written
-  0x02 0x05 0x08 0x0A              answer with a value, meaning unknown
-  0x16 0x17 0x18 0x1A 0x1B 0x23    settings, meaning unknown
+  0x02 0x05 0x08                   answer with a value, meaning unknown
+  0x17 0x18 0x1A 0x1B 0x23         settings, meaning unknown
   0x1F 0x20 0x21                   3-byte counters, probably run/filter time
 
 The unit answers 0xFD (not supported) to, among others:
@@ -195,7 +199,7 @@ def read_state() -> dict | None:
     at once, so they are read one at a time.
     """
     out = {}
-    for param in (0x01, 0x03, 0x04, 0x06, 0x07):
+    for param in (0x01, 0x03, 0x04, 0x06, 0x07, 0x0A):
         answer = send_raw(bytes([param]), func=0x01)
         if not answer:
             return None
@@ -206,17 +210,27 @@ def read_state() -> dict | None:
         "rpm": out.get(0x04) or 0,
         "countdown": out.get(0x06) or 0,
         "boost": out.get(0x07, 0),
+        "sensor_demand": out.get(0x0A, 0),
     }
 
 
 def describe(state: dict | None) -> str:
-    """Name the state the fan is in. See PROTOCOL.md."""
+    """
+    Name the state the fan is in. See PROTOCOL.md.
+
+    Note that the fan starts itself: the humidity sensor, and the
+    temperature sensor if you enable it, run the fan without setting the
+    boost countdown or the boost flag. Never recognise boost by speed
+    alone - a sensor can drive the fan at the same 1440 rpm.
+    """
     if state is None:
         return "no answer"
     if not state["power"]:
         return "off"
-    if state["rpm"] == 0:
-        return "idle (powered, not spinning)"
     if state["countdown"] > 0 or state["boost"]:
         return "boost"
+    if state["rpm"] == 0:
+        return "idle (powered, not spinning)"
+    if state.get("sensor_demand") or not state["mode_24h"]:
+        return "sensor driven"
     return "24 hour mode"

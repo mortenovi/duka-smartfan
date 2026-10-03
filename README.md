@@ -88,11 +88,13 @@ Put `fan_protocol.py`, `fan_boost_toggle.py` and your `config.json` in the same 
 
 If a smart button triggers the automation, make the automation listen to **one** event from the button and set `mode: single`. Many buttons send both a press and a release, and that is two runs of the script. `fan_boost_toggle.py` ignores a second run within five seconds for exactly this reason, but it is better not to send it twice in the first place.
 
-## Three things worth knowing before you build on this
+## Four things worth knowing before you build on this
 
 **The fan spins when power is on and either 24 hour mode is on or a boost is running.** A toggle that asks "is the fan spinning" will switch the fan off when 24 hour mode is on, instead of giving you boost. Decide from the boost countdown instead.
 
 **Boost can only be stopped by switching power off.** Writing zero to the boost status, the countdown or parameter `0x14` does nothing at all. Boost lasts 15 minutes and the duration cannot be set.
+
+**The fan starts itself.** The humidity sensor is on by default and runs the fan without anyone pressing anything, and it does so without setting the boost countdown or the boost flag. So never recognise boost by speed alone, and never assume your automation is the only thing touching the fan. `read_state()` reports `sensor_demand` for this.
 
 **The published parameter tables do not fit this unit.** Humidity is `0x2E`, not `0x25`. Speed is `0x04`, not `0x4A`. `0x66` and `0xB7` do not exist here, and `0x03`, which is 24 hour mode, is not in any table. `PROTOCOL.md` has the measurements.
 
