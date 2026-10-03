@@ -27,7 +27,9 @@ Boost lasted **15 minutes** on this unit, every time it was measured. The durati
 
 ⛔ Do not put `0x14` in a boost packet. Scripts in circulation send `14=15` as a "boost duration". `0x14` is the **humidity threshold in percent**, and it accepts 40 to 80. A value of 15 is out of range and quietly ignored, which is why nobody noticed - but a boost packet carrying `14=60` would change the owner's humidity setting on every single press.
 
-**Boost can only be stopped by switching power off.** Writing 0 to the boost status `0x07`, to the countdown `0x06`, to `0x14`, or sending a speed change were all tried mid-boost and the countdown simply kept running. `0x01 = 0` stops it instantly and clears the countdown, so a stopped boost can never restart the fan later.
+**Boost is switched with `0x05`, and only with `0x05`.** Writing `05=1` starts it, as long as power is already on; writing `05=0` ends it and the fan drops straight back to 24 hour mode without the ventilation stopping. Writing 0 to the boost status `0x07`, to the countdown `0x06` or to `0x14` does nothing at all — those are values the unit owns. Cutting power with `01=0` also ends a boost and clears the countdown, but it stops the ventilation with it.
+
+`PACKETS.md` has the whole packet byte by byte, including what each byte of the boost packet found in older scripts actually does.
 
 **Where the fan lands when boost ends depends on 24 hour mode:**
 
@@ -71,7 +73,8 @@ Because of this, anything that starts boost must leave `0x03` alone. A boost pac
 | `0x03` | read/write | 24 hour mode, 0 or 1 |
 | `0x04` | read | Fan speed in rpm, 2 bytes |
 | `0x06` | read | Boost countdown in seconds, 3 bytes, counts down by one per second |
-| `0x07` | read | Boost running, 0 or 1 |
+| `0x05` | read/write | Boost switch. 1 starts a boost, 0 ends it. Power must be on first |
+| `0x07` | read | Boost running, 0 or 1. Status only, writing it does nothing |
 | `0x2E` | read | Humidity in percent |
 | `0x31` | read | Temperature in degrees Celsius |
 | `0x0F` | read/write | Humidity sensor: 0 off, 1 on in auto mode, 2 on in manual mode |
@@ -80,7 +83,7 @@ Because of this, anything that starts boost must leave `0x03` alone. A boost pac
 | `0x16` | read/write | Temperature threshold in degrees. The manual allows 18 to 36. Verified by writing it and watching the sensor react |
 | `0x14` | read/write | Humidity threshold in percent, 40 to 80. Only used when the humidity sensor is in manual mode. Values outside the range are ignored |
 | `0x08` | read | 1 while the humidity sensor is in manual mode |
-| `0x02` `0x05` | read | Answer with a value, meaning unknown |
+| `0x02` | read | Answers with a value, meaning unknown |
 | `0x17` `0x18` `0x1A` `0x1B` `0x23` | read | Settings, meaning unknown |
 | `0x1F` `0x20` `0x21` | read | 3-byte counters, probably run time and filter time |
 

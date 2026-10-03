@@ -31,6 +31,7 @@ python fan_snapshot.py
 | `fan_off.py` | Switch the fan off, which also ends a running boost |
 | `fan_24h.py` | Switch 24 hour mode on or off |
 | `PROTOCOL.md` | **What the fan actually does**, measured rather than quoted |
+| `PACKETS.md` | The wire format byte by byte, and what each byte in the packets found online really does |
 | `states.svg` | The same thing as a diagram |
 
 ## Getting started
@@ -92,7 +93,7 @@ If a smart button triggers the automation, make the automation listen to **one**
 
 **The fan spins when power is on and either 24 hour mode is on or a boost is running.** A toggle that asks "is the fan spinning" will switch the fan off when 24 hour mode is on, instead of giving you boost. Decide from the boost countdown instead.
 
-**Boost can only be stopped by switching power off.** Writing zero to the boost status or to the countdown does nothing at all. Boost lasts 15 minutes, and the duration is set in the app, not over the protocol.
+**Boost is switched with one parameter, `0x05`.** Writing `05=1` starts it when power is on, and `05=0` ends it without stopping the ventilation. Writing to the boost status or the countdown does nothing — the unit owns those. Boost lasts 15 minutes, and the duration is set in the app, not over the protocol.
 
 ⛔ If you copied a boost packet from somewhere, check it for `0x14`. Scripts in circulation send `14=15` believing it sets the boost duration. `0x14` is the humidity threshold in percent and accepts 40 to 80, so 15 is ignored - but a value inside the range would change the owner's humidity setting on every press.
 

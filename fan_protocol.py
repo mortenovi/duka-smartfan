@@ -24,8 +24,12 @@ reading the unit directly.
   0x01  R/W  power                   0 = off, 1 = on
   0x03  R/W  24 hour mode            0 = off, 1 = on
   0x04  R    fan speed               rpm, 2 bytes
+  0x05  R/W  boost switch            1 starts a boost, 0 ends it. THIS is the
+                                     one that controls boost - power must be
+                                     on first
   0x06  R    boost countdown         seconds left, 3 bytes, counts down by 1/s
-  0x07  R    boost running           0 = no, 1 = yes
+  0x07  R    boost running           0 = no, 1 = yes. Status only: writing it
+                                     does nothing
   0x2E  R    humidity                percent
   0x31  R    temperature             degrees Celsius
   0x0F  R/W  humidity sensor         0 = off, 1 = on in auto, 2 = on in manual
@@ -39,7 +43,7 @@ reading the unit directly.
              harmless - send a value inside the range and it silently
              changes the owner's humidity setting
   0x08  R    1 while the humidity sensor is in manual mode
-  0x02 0x05                        answer with a value, meaning unknown
+  0x02                             answers with a value, meaning unknown
   0x17 0x18 0x1A 0x1B 0x23         settings, meaning unknown
   0x1F 0x20 0x21                   3-byte counters, probably run/filter time
 

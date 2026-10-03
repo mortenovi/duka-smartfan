@@ -12,8 +12,9 @@ Three rules that came out of measuring the unit (see PROTOCOL.md):
   * The fan spins when power is on AND (24 hour mode is on OR boost runs).
     A toggle that reads "is it spinning" therefore switches the fan off
     when 24 hour mode is on, instead of giving you boost.
-  * Boost can only be stopped by switching power off. Writing 0 to the
-    boost status, the countdown or parameter 0x14 does nothing.
+  * Boost is switched with 0x05, and only with 0x05. Writing 0 to the boost
+    status 0x07, to the countdown 0x06 or to 0x14 does nothing - those are
+    status values the unit sets itself, and 0x14 is the humidity threshold.
   * One press of a smart button can reach a home automation system as
     several events. Without the debounce below, the second run undoes
     the first.
@@ -31,15 +32,18 @@ DEBOUNCE_SECONDS = 5
 
 _LAST_RUN = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".last_toggle")
 
-# One packet, so the fan beeps once. Note what is NOT in it: 0x03, the
-# 24 hour mode flag. Sending it here switches that setting back on behind
-# the user's back every time boost is started.
-BOOST_PACKET = bytes([
-    0x01, 0x01,           # power on
-    0x02, 0x01,           # speed 1
-    0x05, 0x01,           # aux
-    0x07, 0x02,           # boost mode
-    0x06, 0x01,           # boost on
+# Boost is switched with 0x05, measured byte by byte on 3 Oct 2026.
+# Everything the old packet carried besides this was noise: 0x02 did
+# nothing, 0x07 and 0x06 are status and countdown that the unit sets
+# itself, and 0x14 is the humidity threshold.
+# Power has to be on first: 05=01 on a fan with no power does nothing.
+BOOST_ON = bytes([
+    0x01, 0x01,   # power on
+    0x05, 0x01,   # boost on
+])
+
+BOOST_OFF = bytes([
+    0x05, 0x00,   # boost off, without cutting power
 ])
 
 
@@ -73,15 +77,10 @@ def main() -> int:
         return 1
 
     if state["countdown"] > 0 or state["boost"]:
-        fan.write(0x01, 0)
-        if state["mode_24h"]:
-            time.sleep(2)
-            fan.write(0x01, 1)
-            print("Boost off - back to 24 hour mode")
-        else:
-            print("Boost off")
+        fan.send_raw(BOOST_OFF, func=0x03)
+        print("Boost off")
     else:
-        fan.send_raw(BOOST_PACKET, func=0x03)
+        fan.send_raw(BOOST_ON, func=0x03)
         print(f"Boost on ({BOOST_MINUTES} min)")
     return 0
 
