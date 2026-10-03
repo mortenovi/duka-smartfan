@@ -143,6 +143,16 @@ One sensor, one reading, and template entities built on its attributes. Do not g
 
 The sensor's state is one of `off`, `idle`, `mode_24h`, `boost`, `sensor` or `no_answer`. Build templates on those keys rather than on `state_text`, which is wording meant for people to read.
 
+**Decide availability from the sensor's state, not from an attribute.** When a reading fails, the attributes of the last successful one are still sitting there, so an entity that asks an attribute whether the fan answered will be told yes by a reading from an hour ago:
+
+```yaml
+availability: "{{ states('sensor.smartfan') not in ['unknown', 'unavailable', 'no_answer'] }}"
+```
+
+For the same reason `ha_fan_state.py` exits 0 even when the fan says nothing: a command line sensor discards the whole output of a command that exits non-zero, and the reading that says "no answer" is exactly the one you need to arrive.
+
+A switch for the humidity sensor loses one thing worth knowing about: the sensor has three states, off, auto and manual, and a switch has two. Turning such a switch off and on again leaves the sensor in whichever mode the switch turns on, so a fan set to manual comes back in auto. The threshold itself survives — it is remembered across the change, measured — so only the choice of mode is lost. A `select` entity with the three options keeps that; a switch is simpler and forgets.
+
 To find your button's id and the exact event names: Developer tools, Events, listen to `hue_event`, then press the button short and then long. Use what you actually see — the names differ between the Hue bridge, ZHA and Zigbee2MQTT.
 
 `mode: single` matters on the long press automation: it keeps a second long press from starting a second three hour timer. The scripts also ignore a second run within five seconds, so a duplicate event cannot undo the press that came before it.
