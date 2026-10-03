@@ -1,3 +1,10 @@
+# Local device configuration - never commit
+# The fan's device id and password live here, see config.example.json
+config.json
+
+# Runtime state written by fan_boost_toggle.py
+.last_toggle
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
