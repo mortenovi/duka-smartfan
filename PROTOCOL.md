@@ -106,6 +106,32 @@ The manual also lists three nominal speeds for the fan (24 hour, Silent, Max) an
 
 Two features we have not explored: interval ventilation, which runs the fan every 12 hours if it has not been active for 24, and delayed start. Both can start the fan on their own, like the sensors.
 
+## Working this out on your own unit
+
+If your fan is a different model, none of the numbers above are safe to trust. The method is, and it needs nothing but the vendor app and a way to read the unit.
+
+**Read the whole range first.** Ask for every parameter from `0x01` upward, one at a time, and write down which ones answer with a value and which answer `0xFD`. That alone tells you which published table, if any, describes your unit. Ours answered on numbers no table mentions and refused several that every table lists.
+
+**Use the app as the oracle.** The vendor app knows what each setting means; the protocol does not. So change exactly one thing in the app, read the unit again, and see which number moved. That is how `0x03` turned out to be 24 hour mode, `0x0F` the humidity sensor, and `0x14` the humidity threshold — the last one by dragging a slider from 40 to 60 percent and watching the parameter follow.
+
+**Prove the app and your reads see the same unit.** Compare live values that change on their own: humidity, temperature, speed, a running countdown. If those match to the second, the mapping you build is about the fan in front of you and not about a cached screen.
+
+**To learn what a packet does, take it apart.** Send each pair of bytes on its own from a known state and read the unit before and after. Then send combinations. A packet that works tells you nothing about which of its bytes did the work.
+
+**Log the unit over time.** Some of what it does, it does by itself. A reading every minute catches a sensor starting the fan, and tells you what the fan falls back to afterwards.
+
+## Three conclusions that were wrong, and why
+
+These were our own mistakes during this work. They are here because the reasoning that produced them looks sound while you are making it.
+
+**"Boost can only be stopped by cutting power."** Writing 0 to the boost status, to the countdown, to `0x14` and a speed change were all tried mid-boost, and the countdown kept running through all four. Cutting power worked. Four negatives and one positive felt like a proof. It was not: `0x05` had never been tried, and `0x05` is the boost switch. A set of negative results is not evidence about the parameter you did not test.
+
+**"`0x14` cannot be written."** Writing 15 and 0 to it changed nothing, so it was filed as read-only and unknown. It is the humidity threshold and it accepts 40 to 80; both test values were out of range and silently dropped. A parameter that refuses your value may be refusing the value, not the write.
+
+**"`0x03` means the fan is running."** It read 1 while the fan ran and 0 while it stood still, twice. Then it read 1 on a fan that was switched off. It is 24 hour mode, which is usually on while the fan runs. Two confirming observations are cheap; the state that separates two hypotheses is the one worth measuring.
+
+The thread running through all three: the unit answers every write with the new state, and it answers just as agreeably when the write did nothing at all.
+
 ## Where the published tables are wrong for this unit
 
 This unit answers `0xFD`, meaning "no such parameter", to several numbers that the vendor documentation defines:
