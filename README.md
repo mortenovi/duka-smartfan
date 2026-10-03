@@ -31,6 +31,8 @@ python fan_snapshot.py
 | `fan_boost_on.py` / `fan_boost_off.py` | Start and stop a boost |
 | `fan_off.py` | Switch the fan off |
 | `fan_24h.py` | Switch 24 hour mode on or off |
+| `ha_fan_state.py` | The whole state as JSON, for a Home Assistant sensor or anything that parses |
+| `ha_fan_command.py` | One named command per run, for a Home Assistant switch or script |
 | `PROTOCOL.md` | **What the fan actually does**, measured rather than quoted |
 | `PACKETS.md` | The wire format byte by byte, and what each byte in the packets found online really does |
 | `states.svg` | The same as a diagram |
@@ -118,6 +120,28 @@ automation:
         # The script cannot wake itself up. Home Assistant holds the timer.
       - action: shell_command.fan_resume
 ```
+
+### Making the fan a real entity
+
+Shell commands are enough for a button, but they are not entities: they do not show up in Assist, in dashboards or over Home Assistant's MCP server. For that, read the state as JSON and turn it into entities:
+
+```yaml
+command_line:
+  - sensor:
+      name: Smartfan
+      command: "python /config/scripts/duka-smartfan/ha_fan_state.py"
+      value_template: "{{ value_json.state }}"
+      json_attributes: [state_text, power, mode_24h, rpm, countdown_seconds,
+                        boost, sensor_demand, humidity, temperature, humidity_sensor]
+      scan_interval: 30
+
+shell_command:
+  fan_command: "python /config/scripts/duka-smartfan/ha_fan_command.py {{ command }}"
+```
+
+One sensor, one reading, and template entities built on its attributes. Do not give each value its own command line sensor: every parameter is a separate round trip to the fan, because this unit does not answer a request for several at once.
+
+The sensor's state is one of `off`, `idle`, `mode_24h`, `boost`, `sensor` or `no_answer`. Build templates on those keys rather than on `state_text`, which is wording meant for people to read.
 
 To find your button's id and the exact event names: Developer tools, Events, listen to `hue_event`, then press the button short and then long. Use what you actually see — the names differ between the Hue bridge, ZHA and Zigbee2MQTT.
 

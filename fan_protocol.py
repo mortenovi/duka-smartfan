@@ -223,26 +223,43 @@ def read_state() -> dict | None:
     }
 
 
-def describe(state: dict | None) -> str:
-    """
-    Name the state the fan is in. See PROTOCOL.md.
+# Stable keys for the states, and the words for a person. Build on the keys:
+# the wording is free to improve, the keys are not.
+STATE_TEXT = {
+    "no_answer": "no answer",
+    "off": "off",
+    "idle": "idle (powered, not spinning)",
+    "mode_24h": "24 hour mode",
+    "boost": "boost",
+    "sensor": "sensor driven",
+}
 
-    Note that the fan starts itself: the humidity sensor, and the
-    temperature sensor if you enable it, run the fan without setting the
-    boost countdown or the boost flag. Never recognise boost by speed
-    alone - a sensor can drive the fan at the same 1440 rpm.
+
+def state_key(state: dict | None) -> str:
+    """
+    Which state the fan is in, as a key that will not change. See PROTOCOL.md.
+
+    Note that the fan starts itself: the humidity sensor, and the temperature
+    sensor if you enable it, run the fan without setting the boost countdown
+    or the boost flag. Never recognise boost by speed alone - a sensor drives
+    the fan at the same speed a boost does.
     """
     if state is None:
-        return "no answer"
+        return "no_answer"
     if not state["power"]:
         return "off"
     if state["countdown"] > 0 or state["boost"]:
         return "boost"
     if state["rpm"] == 0:
-        return "idle (powered, not spinning)"
+        return "idle"
     if state.get("sensor_demand") or not state["mode_24h"]:
-        return "sensor driven"
-    return "24 hour mode"
+        return "sensor"
+    return "mode_24h"
+
+
+def describe(state: dict | None) -> str:
+    """The state in words, for a person to read. Code should use state_key()."""
+    return STATE_TEXT[state_key(state)]
 
 # ---------- actions ----------
 #
