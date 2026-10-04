@@ -106,6 +106,34 @@ The manual also lists three nominal speeds for the fan (24 hour, Silent, Max) an
 
 Two features we have not explored: interval ventilation, which runs the fan every 12 hours if it has not been active for 24, and delayed start. Both can start the fan on their own, like the sensors.
 
+## One client at a time
+
+The fan answers one client at a time. Two clients reading at the same moment:
+one of them gets nothing. Three: two get nothing. Measured by starting the
+readings together and timing them.
+
+This matters more than it sounds, because everything built on this fan ends
+up polling it. A home automation reading the state every thirty seconds and a
+person pressing a button will collide sooner or later, and a lost answer looks
+exactly like a fan that is switched off — which is how a button press ends up
+doing nothing, or worse, doing the opposite.
+
+Two things follow:
+
+**Never treat silence as a state.** `read_state()` returns `None`, not zeros,
+and everything here does nothing when it gets `None`.
+
+**Send each packet twice if the first one is not answered.** `send_raw()` does
+this, waiting a randomised moment in between so that two clients that collided
+once do not line up again. With the retry, all three clients in the test above
+got their answer; without it, two of them got nothing. Retrying is safe for
+the commands in this library, because each one says what the fan should be and
+not what it should change by, so arriving twice is the same as arriving once.
+
+And do not poll faster than you need to. Every parameter is a separate round
+trip, so one reading of the full state is eight packets. Every thirty seconds
+is plenty for a fan.
+
 ## Working this out on your own unit
 
 If your fan is a different model, none of the numbers above are safe to trust. The method is, and it needs nothing but the vendor app and a way to read the unit.

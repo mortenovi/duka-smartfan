@@ -60,8 +60,10 @@ been verified on the device. See PROTOCOL.md for the state model.
 
 import json
 import os
+import random
 import socket
 import struct
+import time
 
 def _find_config() -> str:
     """
@@ -106,6 +108,11 @@ FAN_IP = _config["fan_ip"]
 PORT = 4000
 TIMEOUT_SECONDS = 3
 
+# How long to wait before trying a packet a second time. The actual wait is
+# somewhere between this and twice this, so two clients that collided once
+# do not line up again.
+RETRY_WAIT_SECONDS = 0.4
+
 # ---------- packet ----------
 
 
@@ -122,8 +129,7 @@ def build_packet(func: int, data: bytes) -> bytes:
     return bytes(pkt)
 
 
-def send_raw(data: bytes, func: int) -> bytes | None:
-    """Send one packet and return the raw answer, or None on timeout."""
+def _send_once(data: bytes, func: int) -> bytes | None:
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.settimeout(TIMEOUT_SECONDS)
     try:
@@ -136,6 +142,31 @@ def send_raw(data: bytes, func: int) -> bytes | None:
         return None
     finally:
         sock.close()
+
+
+def send_raw(data: bytes, func: int) -> bytes | None:
+    """
+    Send one packet and return the raw answer, or None if the fan says
+    nothing both times.
+
+    It is tried twice, because the fan answers one client at a time.
+    Measured: with two clients reading at once, one of them gets nothing;
+    with three, two get nothing. A home automation polling every half minute
+    and a person pressing a button will collide sooner or later, and a lost
+    answer looks exactly like a fan that is switched off.
+
+    The wait before the retry is randomised so that two clients that
+    collided do not collide again in the same way.
+
+    Retrying a write is safe here: every command this library sends says
+    what the fan should be, not what it should change by, so arriving twice
+    is the same as arriving once.
+    """
+    answer = _send_once(data, func)
+    if answer is not None:
+        return answer
+    time.sleep(random.uniform(RETRY_WAIT_SECONDS, RETRY_WAIT_SECONDS * 2))
+    return _send_once(data, func)
 
 
 # ---------- parsing ----------

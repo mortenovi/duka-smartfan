@@ -29,6 +29,9 @@ import fan_protocol as fan
 
 DEBOUNCE_SECONDS = 5
 
+# A saved state older than this belongs to a pause that is long over.
+PAUSE_MAX_AGE_SECONDS = 12 * 3600
+
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _LAST_RUN = os.path.join(_HERE, ".last_hold")
 _SAVED = os.path.join(_HERE, ".paused_state")
@@ -67,6 +70,14 @@ def quiet() -> int:
         log("hold  -> no answer from the fan, did nothing")
         return 1
 
+    # A pause is already running: the fan's current settings are the paused
+    # ones, so saving them would overwrite the owner's real settings with
+    # zeros and resume would put back a fan with its sensors off. Keep what
+    # was saved and only apply the quiet settings again, which also ends a
+    # stray boost. A save older than this is a leftover, not a running pause.
+    paused = (os.path.exists(_SAVED)
+              and time.time() - os.path.getmtime(_SAVED) < PAUSE_MAX_AGE_SECONDS)
+
     saved = {
         "humidity_sensor": fan.read(0x0F).get(0x0F, 1),
         "temperature_sensor": fan.read(0x11).get(0x11, 0),
@@ -74,19 +85,21 @@ def quiet() -> int:
         "power": state["power"],
         "at": time.strftime("%Y-%m-%d %H:%M:%S"),
     }
-    try:
-        with open(_SAVED, "w", encoding="utf-8") as f:
-            json.dump(saved, f)
-    except OSError:
-        print("Could not write the saved settings - not pausing")
-        return 1
+    if not paused:
+        try:
+            with open(_SAVED, "w", encoding="utf-8") as f:
+                json.dump(saved, f)
+        except OSError:
+            print("Could not write the saved settings - not pausing")
+            return 1
 
     fan.humidity_sensor(0)
     fan.temperature_sensor(False)
     fan.write(0x03, 0)
     fan.power(False)
     time.sleep(3)
-    log(f"quiet -> saved {saved} | now {fan.describe(fan.read_state())}")
+    kept = "kept the earlier save" if paused else f"saved {saved}"
+    log(f"quiet -> {kept} | now {fan.describe(fan.read_state())}")
     print("All ventilation paused")
     return 0
 
