@@ -24,46 +24,38 @@ import sys
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import button_lock
 import fan_protocol as fan
 
 BOOST_MINUTES = 15
-
-# One press of a Hue button reaches a home automation system as several
-# events. Ignore a second run that follows this closely.
-DEBOUNCE_SECONDS = 5
 
 # Below this the fan is idling or ventilating quietly; above it, it is working.
 FULL_SPEED_RPM = 1200
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
-_LAST_RUN = os.path.join(_HERE, ".last_press")
 _LOG = os.path.join(_HERE, "logs", "button.log")
 
 
-def too_soon() -> bool:
-    now = time.time()
-    try:
-        with open(_LAST_RUN) as f:
-            if now - float(f.read().strip()) < DEBOUNCE_SECONDS:
-                return True
-    except (OSError, ValueError):
-        pass
-    stamp(now)
-    return False
-
-
-def stamp(now: float) -> None:
-    """Remember when a run happened, so duplicate events are ignored.
-
-    Written both before and after the work: a button that sends several
-    events sends them within a second, and a run that takes a few seconds
-    must not leave a gap behind it where the next event slips through.
+def stand_down() -> bool:
     """
-    try:
-        with open(_LAST_RUN, "w") as f:
-            f.write(str(now))
-    except OSError:
-        pass
+    True when this press should do nothing.
+
+    Two cases, and they are both the same button being pressed once: another
+    run within the debounce window, which is a duplicate event; or a long
+    press claiming the button while this one waits. See button_lock.py.
+    """
+    if button_lock.claimed(button_lock.DEBOUNCE_SECONDS):
+        print("Ignored: the button was already handled a moment ago")
+        return True
+
+    button_lock.claim("press")
+    time.sleep(button_lock.HOLD_GRACE_SECONDS)
+
+    if button_lock.claimed(button_lock.HOLD_GRACE_SECONDS + 1, action="hold"):
+        print("Ignored: this was a long press")
+        log("press -> stood down, a long press claimed the button")
+        return True
+    return False
 
 
 def log(line: str) -> None:
@@ -107,8 +99,7 @@ def stop(state: dict) -> None:
 
 
 def main() -> int:
-    if too_soon():
-        print(f"Ignored: another press less than {DEBOUNCE_SECONDS} seconds ago")
+    if stand_down():
         return 0
 
     state = fan.read_state()
@@ -129,7 +120,7 @@ def main() -> int:
         log(f"boost -> {short(fan.read_state())}")
         print(f"Boost on ({BOOST_MINUTES} min)")
 
-    stamp(time.time())
+    button_lock.claim("press")
     return 0
 
 

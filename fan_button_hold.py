@@ -25,33 +25,15 @@ import sys
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import button_lock
 import fan_protocol as fan
-
-DEBOUNCE_SECONDS = 5
 
 # A saved state older than this belongs to a pause that is long over.
 PAUSE_MAX_AGE_SECONDS = 12 * 3600
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
-_LAST_RUN = os.path.join(_HERE, ".last_hold")
 _SAVED = os.path.join(_HERE, ".paused_state")
 _LOG = os.path.join(_HERE, "logs", "button.log")
-
-
-def too_soon() -> bool:
-    now = time.time()
-    try:
-        with open(_LAST_RUN) as f:
-            if now - float(f.read().strip()) < DEBOUNCE_SECONDS:
-                return True
-    except (OSError, ValueError):
-        pass
-    try:
-        with open(_LAST_RUN, "w") as f:
-            f.write(str(now))
-    except OSError:
-        pass
-    return False
 
 
 def log(line: str) -> None:
@@ -137,10 +119,15 @@ def main() -> int:
         print("Usage: python fan_button_hold.py [quiet|resume]")
         return 2
 
-    # The resume comes from a timer, not from a finger, so it is never debounced.
-    if arg != "resume" and too_soon():
-        print(f"Ignored: another press less than {DEBOUNCE_SECONDS} seconds ago")
-        return 0
+    # A long press claims the button at once, so a short press that is on its
+    # way can stand down. Only another long press counts as a duplicate: the
+    # long press wins over a short one whichever arrived first.
+    # The resume comes from a timer, not from a finger, so it never waits.
+    if arg != "resume":
+        if button_lock.claimed(button_lock.DEBOUNCE_SECONDS, action="hold"):
+            print("Ignored: another long press a moment ago")
+            return 0
+        button_lock.claim("hold")
 
     if arg == "quiet":
         return quiet()

@@ -28,6 +28,7 @@ python fan_snapshot.py
 | `fan_snapshot.py` | Print everything the fan will tell you. Changes nothing |
 | `fan_button_press.py` | **Short press on a wall button:** start the fan, or stop it |
 | `fan_button_hold.py` | **Long press:** pause all ventilation, and put it back |
+| `button_lock.py` | How the two agree when one press runs both of them |
 | `fan_boost_on.py` / `fan_boost_off.py` | Start and stop a boost |
 | `fan_off.py` | Switch the fan off |
 | `fan_24h.py` | Switch 24 hour mode on or off |
@@ -172,7 +173,11 @@ A switch for the humidity sensor loses one thing worth knowing about: the sensor
 
 To find your button's id and the exact event names: Developer tools, Events, listen to `hue_event`, then press the button short and then long. Use what you actually see — the names differ between the Hue bridge, ZHA and Zigbee2MQTT.
 
-`mode: single` matters on the long press automation: it keeps a second long press from starting a second three hour timer. The scripts also ignore a second run within five seconds, so a duplicate event cannot undo the press that came before it.
+`mode: single` matters on the long press automation: it keeps a second long press from starting a second three hour timer.
+
+**A genuine long press also produces the short press event**, so both automations run. The scripts handle that between themselves through `button_lock.py`: a long press claims the button as it starts, and a short press waits a moment and stands down if a long press claimed it, whichever one the automation started first. Without that, the long press stops the fan and the short press, a second behind it, sees a stopped fan and starts a boost - the opposite of what was asked for. Measured, reproduced and fixed on 6 October 2026.
+
+The automations therefore need no delay or guard of their own; the scripts are the ones that can see each other.
 
 ## Four things worth knowing## Four things worth knowing before you build on this
 
