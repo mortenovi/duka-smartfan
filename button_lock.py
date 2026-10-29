@@ -32,8 +32,11 @@ import time
 DEBOUNCE_SECONDS = 5
 
 # Long enough for the long press event to arrive and claim the button after
-# the short press event did. Measured arrival: within the same second.
-HOLD_GRACE_SECONDS = 1.3
+# the short press event did. A Hue button sometimes sends a short press first
+# and the long press up to two seconds later - measured 29 Oct 2026 with a
+# nearly flat battery and again, once in seven long presses, with a new one.
+# The owner chose one beep for every long press over a faster short press.
+HOLD_GRACE_SECONDS = 2.5
 
 _NOTE = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".last_button")
 

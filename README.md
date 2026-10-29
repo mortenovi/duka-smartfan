@@ -98,13 +98,23 @@ fan.temperature_threshold(24)     # degrees, 18 to 36
 
 ## Home Assistant and a wall button
 
-Two shell commands in `configuration.yaml`:
+Shell commands in `configuration.yaml`:
 
 ```yaml
 shell_command:
   fan_press:  python /config/scripts/duka-smartfan/fan_button_press.py
+  fan_hold:   python /config/scripts/duka-smartfan/fan_button_hold.py
   fan_quiet:  python /config/scripts/duka-smartfan/fan_button_hold.py quiet
   fan_resume: python /config/scripts/duka-smartfan/fan_button_hold.py resume
+```
+
+And a timer that holds the pause. `restore: true` keeps it running through a restart of Home Assistant, which a `delay` in an automation does not:
+
+```yaml
+timer:
+  fan_pause:
+    duration: "03:00:00"
+    restore: true
 ```
 
 Put `fan_protocol.py`, both button scripts and your `config.json` in that folder.
@@ -133,11 +143,32 @@ automation:
           id: YOUR_BUTTON_ID
           type: long_release
     actions:
-      - action: shell_command.fan_quiet
-      - delay: "03:00:00"
-        # The script cannot wake itself up. Home Assistant holds the timer.
+      # A long press during a pause ends it; otherwise it starts one.
+      - if:
+          - condition: state
+            entity_id: timer.fan_pause
+            state: active
+        then:
+          - action: timer.cancel
+            target: {entity_id: timer.fan_pause}
+          - action: shell_command.fan_hold     # resumes, and stops a boost
+        else:
+          - action: shell_command.fan_quiet
+          - action: timer.start
+            target: {entity_id: timer.fan_pause}
+
+  - alias: Fan button - pause over
+    mode: single
+    triggers:
+      - trigger: event
+        event_type: timer.finished
+        event_data:
+          entity_id: timer.fan_pause
+    actions:
       - action: shell_command.fan_resume
 ```
+
+The script cannot wake itself up three hours later, so Home Assistant holds the timer. A resume from the timer leaves a boost alone, because someone asked for that boost on purpose; a resume from the button stops it, because the person at the button asked for normal.
 
 ### Making the fan a real entity
 
@@ -173,9 +204,11 @@ A switch for the humidity sensor loses one thing worth knowing about: the sensor
 
 To find your button's id and the exact event names: Developer tools, Events, listen to `hue_event`, then press the button short and then long. Use what you actually see — the names differ between the Hue bridge, ZHA and Zigbee2MQTT.
 
-`mode: single` matters on the long press automation: it keeps a second long press from starting a second three hour timer.
+`mode: single` matters on the long press automation: it keeps the events of one press from running the automation twice.
 
 **A genuine long press also produces the short press event**, so both automations run. The scripts handle that between themselves through `button_lock.py`: a long press claims the button as it starts, and a short press waits a moment and stands down if a long press claimed it, whichever one the automation started first. Without that, the long press stops the fan and the short press, a second behind it, sees a stopped fan and starts a boost - the opposite of what was asked for. Measured, reproduced and fixed on 6 October 2026.
+
+How long the short press waits is `HOLD_GRACE_SECONDS` in `button_lock.py`. A Hue button sometimes sends the short press event first and the long press event up to two seconds later, so the wait is 2.5 seconds. The price is that a short press beeps about three seconds after the finger leaves the button. A shorter wait gives a quicker beep and, now and then, a long press that does two things.
 
 The automations therefore need no delay or guard of their own; the scripts are the ones that can see each other.
 

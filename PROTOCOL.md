@@ -123,9 +123,11 @@ Two things follow:
 **Never treat silence as a state.** `read_state()` returns `None`, not zeros,
 and everything here does nothing when it gets `None`.
 
-**Send each packet twice if the first one is not answered.** `send_raw()` does
-this, waiting a randomised moment in between so that two clients that collided
-once do not line up again. With the retry, all three clients in the test above
+**Send each packet again if it is not answered.** `send_raw()` tries up to
+three times, waiting a randomised moment in between so that two clients that
+collided once do not line up again. Each try waits 0.6 seconds for an answer:
+the fan answers within 0.01-0.2 seconds on a home network, so an answer that
+has not come by then is lost, and waiting longer only delays the next try. With the retry, all three clients in the test above
 got their answer; without it, two of them got nothing. Retrying is safe for
 the commands in this library, because each one says what the fan should be and
 not what it should change by, so arriving twice is the same as arriving once.

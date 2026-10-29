@@ -120,7 +120,6 @@ def main() -> int:
         log(f"boost -> {short(fan.read_state())}")
         print(f"Boost on ({BOOST_MINUTES} min)")
 
-    button_lock.claim("press")
     return 0
 
 

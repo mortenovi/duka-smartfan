@@ -106,7 +106,14 @@ DEVICE_ID = _config["device_id"]
 PASSWORD = _config["password"]
 FAN_IP = _config["fan_ip"]
 PORT = 4000
-TIMEOUT_SECONDS = 3
+# The fan answers within a few hundredths of a second on a home network
+# (measured 0.01-0.2 s, 29 Oct 2026). An answer that has not come by now
+# has been lost, and waiting longer only delays the next try - which a
+# person at a wall button hears as a slow beep.
+TIMEOUT_SECONDS = 0.6
+
+# How many times a packet is sent before giving up.
+ATTEMPTS = 3
 
 # How long to wait before trying a packet a second time. The actual wait is
 # somewhere between this and twice this, so two clients that collided once
@@ -147,9 +154,9 @@ def _send_once(data: bytes, func: int) -> bytes | None:
 def send_raw(data: bytes, func: int) -> bytes | None:
     """
     Send one packet and return the raw answer, or None if the fan says
-    nothing both times.
+    nothing every time.
 
-    It is tried twice, because the fan answers one client at a time.
+    It is tried ATTEMPTS times, because the fan answers one client at a time.
     Measured: with two clients reading at once, one of them gets nothing;
     with three, two get nothing. A home automation polling every half minute
     and a person pressing a button will collide sooner or later, and a lost
@@ -162,11 +169,13 @@ def send_raw(data: bytes, func: int) -> bytes | None:
     what the fan should be, not what it should change by, so arriving twice
     is the same as arriving once.
     """
-    answer = _send_once(data, func)
-    if answer is not None:
-        return answer
-    time.sleep(random.uniform(RETRY_WAIT_SECONDS, RETRY_WAIT_SECONDS * 2))
-    return _send_once(data, func)
+    for attempt in range(ATTEMPTS):
+        if attempt:
+            time.sleep(random.uniform(RETRY_WAIT_SECONDS, RETRY_WAIT_SECONDS * 2))
+        answer = _send_once(data, func)
+        if answer is not None:
+            return answer
+    return None
 
 
 # ---------- parsing ----------

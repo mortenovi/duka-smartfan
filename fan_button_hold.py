@@ -86,7 +86,7 @@ def quiet() -> int:
     return 0
 
 
-def resume() -> int:
+def resume(end_boost: bool = False) -> int:
     try:
         with open(_SAVED, encoding="utf-8") as f:
             saved = json.load(f)
@@ -103,6 +103,11 @@ def resume() -> int:
     fan.temperature_sensor(bool(saved.get("temperature_sensor", 0)))
     fan.write(0x03, 1 if saved.get("mode_24h") else 0)
     fan.power(bool(saved.get("power")) or bool(saved.get("mode_24h")))
+    if end_boost:
+        # Someone at the button asked for normal, and a boost started during
+        # the pause is not normal. The timer ending a pause leaves a boost
+        # alone: that boost was asked for minutes ago, on purpose.
+        fan.boost(False)
     try:
         os.remove(_SAVED)
     except OSError:
@@ -133,7 +138,7 @@ def main() -> int:
         return quiet()
     if arg == "resume":
         return resume()
-    return resume() if os.path.exists(_SAVED) else quiet()
+    return resume(end_boost=True) if os.path.exists(_SAVED) else quiet()
 
 
 if __name__ == "__main__":
